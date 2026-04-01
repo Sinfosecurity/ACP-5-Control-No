@@ -1005,6 +1005,8 @@ export async function scrapeACP5ControlNumbers(
         });
 
         extractions.push({
+          jobNumber: filing.jobNumber,
+          filingNumber: filing.filingNumber,
           ...extractedData,
           sourceUrl,
           ...additionalData,

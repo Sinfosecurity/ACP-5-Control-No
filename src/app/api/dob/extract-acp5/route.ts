@@ -282,8 +282,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       success: true,
-      extractions: result.rows,
-      count: result.rows.length,
+      extractions: result,
+      count: result.length,
     });
   } catch (err) {
     console.error('[acp5-api] Failed to retrieve extractions:', err);

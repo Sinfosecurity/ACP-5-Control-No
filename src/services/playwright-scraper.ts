@@ -631,7 +631,7 @@ export async function scrapeDobnowPortal(
           name: (el as HTMLInputElement).name,
           id: el.id,
           placeholder: (el as HTMLInputElement).placeholder,
-          visible: el.offsetParent !== null
+          visible: el instanceof HTMLElement ? el.offsetParent !== null : false
         }))
       );
       console.log('[playwright] Available form fields:', JSON.stringify(allInputs, null, 2));
