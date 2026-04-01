@@ -396,10 +396,10 @@ export async function scrapeDobnowPortal(
   let screenshotPath: string | undefined;
 
   // Dynamic import — Playwright must only run on the server
-  let firefox: import('playwright').BrowserType;
+  let chromium: import('playwright').BrowserType;
   try {
     const pw = await import('playwright');
-    firefox = pw.firefox; // Try Firefox instead of Chromium
+    chromium = pw.chromium;
   } catch (err) {
     const error = `Playwright not available: ${err instanceof Error ? err.message : String(err)}`;
     console.error('[playwright]', error);
@@ -415,13 +415,22 @@ export async function scrapeDobnowPortal(
     };
   }
 
-  const browser = await firefox.launch({
+  // Use system Chromium if PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH is set (Railway)
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
+  
+  const browser = await chromium.launch({
     headless: HEADLESS,
-    args: [],  // Firefox doesn't need the same flags
+    executablePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
   });
 
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 900 },
   });
 
@@ -432,7 +441,7 @@ export async function scrapeDobnowPortal(
   page.on('pageerror', e => pageErrors.push(e.message));
 
   try {
-    console.log('[playwright] Navigating to DOB NOW portal with Firefox...');
+    console.log('[playwright] Navigating to DOB NOW portal with Chromium...');
     
     // Retry navigation up to 2 times due to portal instability
     await retryAsync(async () => {
