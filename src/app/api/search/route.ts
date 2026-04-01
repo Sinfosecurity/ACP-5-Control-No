@@ -80,15 +80,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   console.log(`[search] Normalized: "${normalizedAddress.normalizedString}" - DOB scraping only`);
 
-  // ---- DB: create property + search records ----
-  const propertyId = await upsertProperty(normalizedAddress);
-  const searchId   = await createSearch({
-    addr: normalizedAddress,
-    propertyId,
-    liveVerify: true, // Always scraping DOB portal now
-    ipAddress: clientId.replace('ip:', ''),
-    userAgent: req.headers.get('user-agent') ?? undefined,
-  });
+  // ---- DB: create property + search records (optional, don't fail if DB unavailable) ----
+  let propertyId: string | null = null;
+  let searchId: string | null = null;
+  
+  try {
+    propertyId = await upsertProperty(normalizedAddress);
+    searchId   = await createSearch({
+      addr: normalizedAddress,
+      propertyId,
+      liveVerify: true, // Always scraping DOB portal now
+      ipAddress: clientId.replace('ip:', ''),
+      userAgent: req.headers.get('user-agent') ?? undefined,
+    });
+  } catch (dbErr) {
+    console.warn('[search] Database unavailable, continuing without persistence:', dbErr);
+  }
 
   const allLogs = [];
 

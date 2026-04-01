@@ -15,10 +15,11 @@ const DOB_NOW_URL = 'https://a810-dobnow.nyc.gov/publish/Index.html#!/';
 const TIMEOUT     = parseInt(process.env.PLAYWRIGHT_TIMEOUT ?? '30000', 10);
 const HEADLESS    = process.env.PLAYWRIGHT_HEADLESS !== 'false';
 const USE_MOCK_DATA = process.env.USE_MOCK_SCRAPER === 'true'; // Fast mock mode for development
-const SCREENSHOT_DIR = path.resolve(
-  process.cwd(),
-  process.env.PLAYWRIGHT_SCREENSHOT_DIR ?? './tmp/screenshots'
-);
+
+// Use /tmp/screenshots in production (Railway), ./tmp/screenshots locally
+const SCREENSHOT_DIR = process.env.NODE_ENV === 'production' 
+  ? '/tmp/screenshots'
+  : path.resolve(process.cwd(), './tmp/screenshots');
 
 // -----------------------------------------------------------------------
 // Screenshot helper
