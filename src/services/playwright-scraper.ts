@@ -223,12 +223,27 @@ async function extractFilingRows(
 ): Promise<FilingRecord[]> {
   // Wait for results section to appear
   await page.waitForSelector(
-    '.job-filings-table, table[class*="filing"], .ng-scope table, .dob-table',
-    { timeout: TIMEOUT, state: 'visible' }
+    '.job-filings-table, table[class*="filing"], .ng-scope table, .dob-table, table',
+    { timeout: TIMEOUT, state: 'attached' }
   ).catch(() => null);
 
   // DOB NOW portal uses AngularJS — give it time to render
-  await sleep(2000);
+  await sleep(3000);
+
+  console.log('[playwright] Attempting to extract table data...');
+  
+  // DEBUG: Log what tables exist on the page
+  const tableInfo = await page.evaluate(() => {
+    const tables = Array.from(document.querySelectorAll('table'));
+    return tables.map((t, i) => ({
+      index: i,
+      rows: t.querySelectorAll('tr').length,
+      headers: Array.from(t.querySelectorAll('th')).map(th => th.textContent?.trim()),
+      classes: t.className,
+      visible: t.offsetParent !== null
+    }));
+  });
+  console.log('[playwright] Found tables:', JSON.stringify(tableInfo, null, 2));
 
   // Try multiple table selector strategies for resilience
   const tableSelectors = [
@@ -236,6 +251,7 @@ async function extractFilingRows(
     '.container table',
     '[ng-controller] table',
     '.job-filings table',
+    'table[class*="mat"]', // Material tables
   ];
 
   let rows: FilingRecord[] = [];
@@ -257,26 +273,38 @@ async function extractFilingRows(
         });
 
         // Prefer the BUILD section; fall back to any table with job number column
-        const headers = await table.$$eval('th', ths =>
+        const headers = await table.$$eval('th, tr:first-child td', ths =>
           ths.map(th => th.textContent?.trim().toUpperCase() ?? '')
+        ).catch(() => []);
+
+        console.log('[playwright] Table headers:', headers);
+
+        const hasJobColumn = headers.some(h =>
+          h.includes('JOB') || h.includes('FILING') || h.includes('NUMBER') || h.includes('DOC')
         );
 
-        const hasJobNumber = headers.some(h =>
-          h.includes('JOB') || h.includes('FILING') || h.includes('NUMBER')
-        );
-
-        if (!hasJobNumber && !headerText.includes('BUILD') && !headerText.includes('JOB')) {
+        // Skip tables without job/filing columns unless they're in BUILD section
+        if (!hasJobColumn && !headerText.includes('BUILD') && !headerText.includes('JOB') && !headerText.includes('FILING')) {
+          console.log('[playwright] Skipping table - no job columns');
           continue;
         }
 
         const extracted = await table.evaluate(tableEl => {
-          const headerCells = Array.from(tableEl.querySelectorAll('thead th, thead td'));
+          // Try multiple header row strategies
+          let headerCells = Array.from(tableEl.querySelectorAll('thead th, thead td'));
+          if (headerCells.length === 0) {
+            headerCells = Array.from(tableEl.querySelectorAll('tr:first-child th, tr:first-child td'));
+          }
           const headerLabels = headerCells.map(th => th.textContent?.trim() ?? '');
 
-          const bodyRows = Array.from(tableEl.querySelectorAll('tbody tr'));
+          // Try multiple body row strategies
+          let bodyRows = Array.from(tableEl.querySelectorAll('tbody tr'));
+          if (bodyRows.length === 0) {
+            bodyRows = Array.from(tableEl.querySelectorAll('tr')).slice(1); // Skip first row (headers)
+          }
 
-          return bodyRows.map(tr => {
-            const cells = Array.from(tr.querySelectorAll('td'));
+          const results = bodyRows.map(tr => {
+            const cells = Array.from(tr.querySelectorAll('td, th'));
             const rowData: Record<string, string> = {};
             cells.forEach((td, i) => {
               const label = headerLabels[i] ?? `col_${i}`;
@@ -284,18 +312,30 @@ async function extractFilingRows(
             });
             return rowData;
           }).filter(r => Object.values(r).some(v => v.length > 0));
+
+          return results;
         });
 
+        console.log(`[playwright] Extracted ${extracted.length} rows from table`);
         if (extracted.length > 0) {
+          console.log('[playwright] Sample row:', JSON.stringify(extracted[0], null, 2));
           rows = extracted.map(r => mapDobNowRowToFiling(r));
           break;
         }
       }
 
       if (rows.length > 0) break;
-    } catch {
+    } catch (err) {
+      console.log('[playwright] Table extraction error:', err);
       continue;
     }
+  }
+
+  if (rows.length === 0) {
+    console.log('[playwright] WARNING: Extracted 0 rows from all tables');
+    // Log page content for debugging
+    const pageText = await page.evaluate(() => document.body.textContent?.substring(0, 500));
+    console.log('[playwright] Page text sample:', pageText);
   }
 
   return rows;
