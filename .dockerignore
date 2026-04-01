@@ -1,0 +1,15 @@
+.git
+.gitignore
+node_modules
+npm-debug.log
+.next
+.env*
+!.env.example
+README.md
+Dockerfile
+docker-compose.yml
+.DS_Store
+tmp/
+screenshots/
+*.md
+!DEPLOYMENT.md

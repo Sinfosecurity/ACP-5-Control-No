@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /api/
+Allow: /api/health
+
+# Block file downloads
+Disallow: /*.csv$
+Disallow: /*.json$
+
+# Sitemap (create this if you have public pages)
+# Sitemap: https://yourdomain.com/sitemap.xml
